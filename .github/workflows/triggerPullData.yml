@@ -3,12 +3,12 @@ name: Propagate changes to data projects
 on: 
   push:
     branches:
-      - data  # assuming changes are pushed to the `data` branch
+      - data  # Triggered when there is a push to the `data` branch
   workflow_dispatch:
     inputs:
       project_name:
         description: 'Name of the originating project'
-        required: true
+        required: false
         type: string
 
 jobs:
@@ -16,14 +16,21 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Print project name
+    - name: Check for project_name in push payload
+      if: github.event_name == 'push'
       run: |
-        if [ "${{ github.event.inputs.project_name }}" == "project1" ]; then
-          echo "Project: Project1"
-        elif [ "${{ github.event.inputs.project_name }}" == "project2" ]; then
-          echo "Project: Project2"
-        elif [ "${{ github.event.inputs.project_name }}" == "project3" ]; then
-          echo "Project: Project3"
+        if [ -n "${{ github.event.commits[0].message }}" ] && [[ "${{ github.event.commits[0].message }}" == *"project_name="* ]]; then
+          project_name=$(echo "${{ github.event.commits[0].message }}" | sed -n 's/.*project_name=\([^ ]*\).*/\1/p')
+          echo "Project Name from commit message: $project_name"
         else
-          echo "Unknown project: ${{ github.event.inputs.project_name }}"
+          echo "No project_name found in commit message."
+        fi
+
+    - name: Print project name on dispatch
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        if [ -n "${{ github.event.inputs.project_name }}" ]; then
+          echo "Project: ${{ github.event.inputs.project_name }}"
+        else
+          echo "No project_name provided in workflow_dispatch."
         fi
