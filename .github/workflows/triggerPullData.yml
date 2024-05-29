@@ -1,0 +1,28 @@
+name: Propagate changes to data projects
+
+on: 
+  push:
+    branches:
+      - data  # assuming changes are pushed to the `data` branch
+  workflow_dispatch:
+
+jobs:
+  identify-and-print:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Identify pusher
+      id: identify
+      run: echo "PUSHER=${{ github.actor }}" >> $GITHUB_ENV
+
+    - name: Print project name
+      run: |
+        if [ "${{ github.actor }}" == "user1" ]; then
+          echo "Project: Project1"
+        elif [ "${{ github.actor }}" == "user2" ]; then
+          echo "Project: Project2"
+        elif [ "${{ github.actor }}" == "user3" ]; then
+          echo "Project: Project3"
+        else
+          echo "Unknown pusher: ${{ github.actor }}"
+        fi
