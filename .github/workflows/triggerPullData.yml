@@ -2,8 +2,6 @@ name: Propagate changes to data projects
 
 on: 
   push:
-    branches:
-      - data  # Triggered when there is a push to the `data` branch
 
 jobs:
   identify-and-print:
