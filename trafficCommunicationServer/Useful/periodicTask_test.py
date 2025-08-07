@@ -26,31 +26,28 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
 
-from twisted.internet import task, protocol
-import src.servers.trafficCommunicationServer.Useful.keyDealer as keyDealer
-import socket
+from twisted.internet import task
 
 
-class udpStream(protocol.DatagramProtocol):
-    def __init__(self, streamPort, commPort, encrypt_key, frequency=1):
-        self.address = ("<broadcast>", streamPort)
-        self.frequency = frequency
-        key = keyDealer.load_private_key(encrypt_key)
-        msg = "listening on:" + str(commPort)
-        msg_t = msg.encode()
-        signature = keyDealer.sign_data(key, msg_t)
-        tmpMsgToSend = signature + "(-.-)".encode() + msg_t
-        self.MsgToSend = tmpMsgToSend
+class periodicTask(task.LoopingCall):
+    def __init__(self, interval, data_dealer):
+        super().__init__(self.periodicCheck)
+        self.interval = interval
+        self.data_dealer = data_dealer
 
-    def startProtocol(self):
-        # if hasattr(socket, 'SO_REUSEPORT'):
+    def start(self):
+        super().start(self.interval)
 
-        self.transport.setBroadcastAllowed(True)
-        self.streaming_task = task.LoopingCall(self.send_message)
-        self.streaming_task.start(self.frequency)  # Send data every 1 second
-
-    def send_message(self):
-        self.transport.write(self.MsgToSend, self.address)
-
-    def connectionLost(self, reason):
-        self.streaming_task.stop()  # Stop streaming when the server is stopped
+    def periodicCheck(self):
+        allClients = self.data_dealer.getConnections()
+        connectedClients = self.data_dealer.getConnectedNow()
+        print ("\033c")
+        print("Server: ON")
+        print("The connected clients are:", connectedClients)
+        print("THE ALLTIMEDATA (since startup) IS: ")
+        print("-------------------------------------------")
+        for client in allClients:
+            data = self.data_dealer.getConnectionData(client)
+            print("+ + + ", client, " data is: ", data)
+        print("-------------------------------------------")
+        print("To quit, press Ctrl+C")

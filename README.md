@@ -15,11 +15,11 @@ git push origin master
 Pull modifications from submodule:
 
 ```bash
-cd src/data
-git checkout data
-git pull origin data
+cd src/servers
+git checkout servers
+git pull origin servers
 cd ../..
-git add src/data
+git add src/servers
 git commit -m "Update submodule pointer after pulling changes"
 git push origin master
 ```

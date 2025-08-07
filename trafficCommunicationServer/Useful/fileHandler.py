@@ -26,31 +26,18 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
 
-from twisted.internet import task, protocol
-import src.servers.trafficCommunicationServer.Useful.keyDealer as keyDealer
-import socket
+from threading import Lock
 
 
-class udpStream(protocol.DatagramProtocol):
-    def __init__(self, streamPort, commPort, encrypt_key, frequency=1):
-        self.address = ("<broadcast>", streamPort)
-        self.frequency = frequency
-        key = keyDealer.load_private_key(encrypt_key)
-        msg = "listening on:" + str(commPort)
-        msg_t = msg.encode()
-        signature = keyDealer.sign_data(key, msg_t)
-        tmpMsgToSend = signature + "(-.-)".encode() + msg_t
-        self.MsgToSend = tmpMsgToSend
+class FileHandler:
+    def __init__(self, f_fileName):
+        self.outFile = open(f_fileName, "w")
+        self.lock = Lock()
 
-    def startProtocol(self):
-        # if hasattr(socket, 'SO_REUSEPORT'):
+    def write(self, f_str):
+        with self.lock:
+            self.outFile.write(f_str)
+            self.outFile.write("\n")
 
-        self.transport.setBroadcastAllowed(True)
-        self.streaming_task = task.LoopingCall(self.send_message)
-        self.streaming_task.start(self.frequency)  # Send data every 1 second
-
-    def send_message(self):
-        self.transport.write(self.MsgToSend, self.address)
-
-    def connectionLost(self, reason):
-        self.streaming_task.stop()  # Stop streaming when the server is stopped
+    def close(self):
+        self.outFile.close()

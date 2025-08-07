@@ -26,31 +26,50 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
 
-from twisted.internet import task, protocol
-import src.servers.trafficCommunicationServer.Useful.keyDealer as keyDealer
-import socket
+from twisted.internet import reactor
+
+from udpStream import udpStream
+from tcpServer import tcpServer
+from locsys_SIM import tcpServerLocsys
+from Useful.dataDealer import dataDealer
+from Useful.periodicTask_test import periodicTask
+
+class TrafficCommunication():
+    def __init__(self, encrypt_key, streamPort=9000, commPort=5000):
+
+        self.data_dealer = dataDealer()
+
+        self.tcp_factory_Locsys = tcpServerLocsys()
+        self.tcp_factory = tcpServer(self.data_dealer)
+        self.udp_factory = udpStream(streamPort, commPort, encrypt_key)
+        self.period_task = periodicTask(0.1, self.data_dealer)
+
+        self.reactor = reactor
+
+        self.reactor.listenTCP(commPort, self.tcp_factory)
+        self.reactor.listenTCP(4691, self.tcp_factory_Locsys)
+        self.reactor.listenUDP(streamPort, self.udp_factory)
+
+    def run(self):
+        self.period_task.start()
+        # self.reactor.run(installSignalHandlers=False)
+
+    def stop(self):
+        self.period_task.stop()
+        self.reactor.stop()
 
 
-class udpStream(protocol.DatagramProtocol):
-    def __init__(self, streamPort, commPort, encrypt_key, frequency=1):
-        self.address = ("<broadcast>", streamPort)
-        self.frequency = frequency
-        key = keyDealer.load_private_key(encrypt_key)
-        msg = "listening on:" + str(commPort)
-        msg_t = msg.encode()
-        signature = keyDealer.sign_data(key, msg_t)
-        tmpMsgToSend = signature + "(-.-)".encode() + msg_t
-        self.MsgToSend = tmpMsgToSend
+if __name__ == "__main__":
+    filename = "src/servers/trafficCommunicationServer/Useful/privatekey_server_test.pem"
+    traffic_communication = TrafficCommunication(filename)
+    traffic_communication.run()
+    from multiprocessing import Event
 
-    def startProtocol(self):
-        # if hasattr(socket, 'SO_REUSEPORT'):
+    blocker = Event()
 
-        self.transport.setBroadcastAllowed(True)
-        self.streaming_task = task.LoopingCall(self.send_message)
-        self.streaming_task.start(self.frequency)  # Send data every 1 second
+    try:
+        blocker.wait()
+    except KeyboardInterrupt:
+        print("\nCatching a KeyboardInterruption exception! Shutdown all processes.\n")
+        traffic_communication.stop()
 
-    def send_message(self):
-        self.transport.write(self.MsgToSend, self.address)
-
-    def connectionLost(self, reason):
-        self.streaming_task.stop()  # Stop streaming when the server is stopped
