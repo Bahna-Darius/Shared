@@ -1,13 +1,13 @@
 Push modifications to submodule
 
 ```bash
-cd src/data
+cd src/servers
 git status
 git add .
 git commit -m "Fix/update in Semaphores"
-git push origin data
+git push origin servers
 cd ../..
-git add src/data
+git add src/servers
 git commit -m "Update submodule pointer to latest commit"
 git push origin master 
 ```
