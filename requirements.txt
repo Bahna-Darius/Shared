@@ -1,2 +1,0 @@
-cryptography==3.4.8
-Twisted==22.10.0
