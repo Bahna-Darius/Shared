@@ -25,44 +25,60 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
+# Import necessary modules
 
-from src.templates.threadwithstop import ThreadWithStop
 from twisted.internet import reactor
-from src.data.Semaphores.threads.udpListener import udpListener
+from src.templates.threadwithstop import ThreadWithStop
+from src.data.TrafficCommunication.threads.udpListener import udpListener
+from src.data.TrafficCommunication.threads.tcpClient import tcpClient
+from src.data.TrafficCommunication.useful.periodicTask import periodicTask
 
 
-class threadSemaphores(ThreadWithStop):
-    """Thread which will handle processCarsAndSemaphores functionalities
+class threadTrafficCommunication(ThreadWithStop):
+    """Thread which will handle processTrafficCommunication functionalities
 
     Args:
-        queueList (dictionary of multiprocessing.queues.Queue): Dictionary of queues where the ID is the type of messages.
-        listenPort (int, optional): Listening port. Defaults to 5007.
+        shrd_mem (sharedMem): A space in memory for mwhere we will get and update data.
+        queuesList (dictionary of multiprocessing.queues.Queue): Dictionary of queues where the ID is the type of messages.
+        deviceID (int): The id of the device.
+        decrypt_key (String): A path to the decription key.
     """
 
     # ====================================== INIT ==========================================
-    def __init__(self, queueList, logger, debugging, listenPort=5007):
-        super(threadSemaphores, self).__init__()
-        self.listenPort = listenPort
-        self.queueList = queueList
-        self.logger = logger
-        self.debugging = debugging
-        self.udp_factory = udpListener(self.queueList, self.logger, self.debugging)
+    def __init__(self, shrd_mem, queueslist, deviceID, frequency, decrypt_key):
+        super(threadTrafficCommunication, self).__init__()
+        self.listenPort = 9000
+        self.queue = queueslist
+
+        self.tcp_factory = tcpClient(self.serverLost, deviceID, frequency, self.queue) # Handles the connection with the server
+
+        self.udp_factory = udpListener(decrypt_key, self.serverFound) # Listens for server broadcast and validates it
+
+        self.period_task = periodicTask(1, shrd_mem, self.tcp_factory) # Handles the queue of errors accumulated so far.
+
         self.reactor = reactor
         self.reactor.listenUDP(self.listenPort, self.udp_factory) # type: ignore
 
+    # =================================== CONNECTION =======================================
+    def serverLost(self):
+        """If the server disconnects, we stop the factory listening and start the reactor listening"""
+
+        self.reactor.listenUDP(self.listenPort, self.udp_factory) # type: ignore
+        self.tcp_factory.stopListening() # type: ignore
+        self.period_task.stop()
+
+    def serverFound(self, address, port):
+        """If the server was found, we stop the factory listening, connect the reactor, and start the periodic task"""
+        
+        self.reactor.connectTCP(address, port, self.tcp_factory) # type: ignore
+        self.udp_factory.stopListening()
+        self.period_task.start()
+
     # ======================================= RUN ==========================================
     def thread_work(self):
-        """
-        Run the thread.
-        """
         self.reactor.run(installSignalHandlers=False) # type: ignore
-        # after the reactor is stopped, we set the blocker to exit the parent's run loop.
-        self._blocker.set()
 
     # ====================================== STOP ==========================================
     def stop(self):
-        """
-        Stop the thread.
-        """
         self.reactor.callFromThread(self.reactor.stop) # type: ignore
-        super(threadSemaphores, self).stop()
+        super(threadTrafficCommunication, self).stop()

@@ -27,7 +27,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
 
 import json
-import time
+from threading import Event
 from src.utils.messages.allMessages import Location
 from src.utils.messages.messageHandlerSender import messageHandlerSender
 from twisted.internet import protocol
@@ -42,13 +42,11 @@ class tcpClient(protocol.ClientFactory):
         self.locsysID = locsysID
         self.locsysFrequency = locsysFrequency
         self.queue = queue
+        self.event = Event()
         self.sendLocation = messageHandlerSender(self.queue, Location)
 
     def clientConnectionLost(self, connector, reason):
-        print(
-            "Connection lost with server ",
-            self.connectiondata,
-        )
+        print(f"\033[1;97m[ Traffic Communication ] :\033[0m \033[1;93mWARNING\033[0m - Connection lost with server \033[94m{self.connectiondata}\033[0m")
         try:
             self.connectiondata = None
             self.connection = None
@@ -57,12 +55,8 @@ class tcpClient(protocol.ClientFactory):
             pass
 
     def clientConnectionFailed(self, connector, reason):
-        print(
-            "Connection failed. Retrying in",
-            self.retry_delay,
-            "seconds... Possible server down or incorrect IP:port match",
-        )
-        time.sleep(self.retry_delay)
+        print(f"\033[1;97m[ Traffic Communication ] :\033[0m \033[1;93mWARNING\033[0m - Connection failed, retrying in \033[94m{self.retry_delay}s\033[0m")
+        self.event.wait(self.retry_delay)
         connector.connect()
 
     def buildProtocol(self, addr):
@@ -71,17 +65,17 @@ class tcpClient(protocol.ClientFactory):
         return conn
 
     def send_data_to_server(self, message):
-        self.connection.send_data(message)
+        self.connection.send_data(message) # type: ignore
 
 
 # One class is generated for each new connection
 class SingleConnection(protocol.Protocol):
     def connectionMade(self):
-        peer = self.transport.getPeer()
-        self.factory.connectiondata = peer.host + ":" + str(peer.port)
-        self.factory.connection = self
-        self.subscribeToLocaitonData(self.factory.locsysID, self.factory.locsysFrequency)
-        print("Connection with server established : ", self.factory.connectiondata)
+        peer = self.transport.getPeer() # type: ignore
+        self.factory.connectiondata = peer.host + ":" + str(peer.port) # type: ignore
+        self.factory.connection = self # type: ignore
+        self.subscribeToLocaitonData(self.factory.locsysID, self.factory.locsysFrequency) # type: ignore
+        print(f"\033[1;97m[ Traffic Communication ] :\033[0m \033[1;92mINFO\033[0m - Connected to server \033[94m{self.factory.connectiondata}\033[0m") # type: ignore
 
     def dataReceived(self, data):
         dat = data.decode()
@@ -92,17 +86,14 @@ class SingleConnection(protocol.Protocol):
         da = json.loads(dat)
 
         if da["type"] == "location":
-            da["id"] = self.factory.locsysID
+            da["id"] = self.factory.locsysID # type: ignore
             # fixed infinite loop on hooks (hopefully)
-            self.factory.sendLocation.send(da)
+            self.factory.sendLocation.send(da) # type: ignore
         else:
-            print(
-                "got message from trafficcommunication server: ",
-                self.factory.connectiondata,
-            )
+            print(f"\033[1;97m[ Traffic Communication ] :\033[0m \033[1;92mINFO\033[0m - Message from server \033[94m{self.factory.connectiondata}\033[0m") # type: ignore
     def send_data(self, message):
         msg = json.dumps(message)
-        self.transport.write(msg.encode())
+        self.transport.write(msg.encode()) # type: ignore
     
     def subscribeToLocaitonData(self, id, frequency):
         # Sends the id you wish to subscribe to and the frequency you want to receive data. Frequency must be between 0.1 and 5. 

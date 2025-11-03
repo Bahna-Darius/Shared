@@ -34,9 +34,8 @@ if __name__ == "__main__":
 from multiprocessing import Pipe
 from src.data.TrafficCommunication.useful.sharedMem import sharedMem
 from src.templates.workerprocess import WorkerProcess
-from src.data.TrafficCommunication.threads.threadTrafficCommunicaiton import (
-    threadTrafficCommunication,
-)
+from src.data.TrafficCommunication.threads.threadTrafficCommunication import threadTrafficCommunication
+
 class processTrafficCommunication(WorkerProcess):
     """This process receives the location of the car and sends it to the processGateway.
     
@@ -48,7 +47,7 @@ class processTrafficCommunication(WorkerProcess):
     """
 
     # ====================================== INIT ==========================================
-    def __init__(self, queueList, logging, deviceID, debugging, frequency=1):
+    def __init__(self, queueList, logging, deviceID, ready_event=None, debugging=False, frequency=1):
         self.queuesList = queueList
         self.logging = logging
         self.shared_memory = sharedMem()
@@ -56,22 +55,7 @@ class processTrafficCommunication(WorkerProcess):
         self.deviceID = deviceID
         self.frequency = frequency
         self.debugging = debugging
-        super(processTrafficCommunication, self).__init__(self.queuesList)
-
-    # ===================================== STOP ==========================================
-    def stop(self):
-        """Function for stopping threads and the process."""
-        
-        for thread in self.threads:
-            thread.stop()
-            thread.join()
-        super(processTrafficCommunication, self).stop()
-
-    # ===================================== RUN ==========================================
-    def run(self):
-        """Apply the initializing methods and start the threads."""
-
-        super(processTrafficCommunication, self).run()
+        super(processTrafficCommunication, self).__init__(self.queuesList, ready_event)
 
     # ===================================== INIT TH ======================================
     def _init_threads(self):

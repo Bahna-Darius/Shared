@@ -43,7 +43,7 @@ class udpListener(protocol.DatagramProtocol):
         self.serverfoundCllback = serverfound
 
     def startProtocol(self):
-        print("Looking for Traffic Communicaiton Server")
+        print("\033[1;97m[ Traffic Communication ] :\033[0m \033[1;92mINFO\033[0m - Looking for Server...")
 
     def datagramReceived(self, datagram, address):
         """In this function we split the receive data and we call the callbackfunction"""
@@ -59,8 +59,7 @@ class udpListener(protocol.DatagramProtocol):
             port = int(msg[1])
             self.serverfoundCllback(address[0], port)
         except Exception as e:
-            print("TrafficCommunication -> udpListener -> datagramReceived:")
-            print(e)
+            print("\033[1;97m[ Traffic Communication ] :\033[0m \033[1;93mWARNING\033[0m - Error in datagramReceived: {e}")
 
     def stopListening(self):
-        self.transport.stopListening()
+        self.transport.stopListening() # type: ignore
