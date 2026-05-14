@@ -49,14 +49,34 @@ class udpListener(protocol.DatagramProtocol):
         Args:
             datagram (dictionary): In this we store the data we get from servers.
         """
-        dat = datagram.decode("utf-8")
-        dat = json.loads(dat)
+        try:
+            dat = json.loads(datagram.decode("utf-8"))
+        except Exception as e:
+            if self.debugging:
+                self.logger.warning(f"[Semaphores] malformed packet from {addr}: {e}")
+            return
 
-        if dat["device"] == "semaphore":
-            tmp = {"id": dat["id"], "state": dat["state"], "x": dat["x"], "y": dat["y"]}
+        device = dat.get("device")
+        if device == "semaphore":
+            if "id" not in dat or "state" not in dat:
+                return
+            tmp = {
+                "id":    dat["id"],
+                "state": dat["state"],
+                "x":     dat.get("x"),
+                "y":     dat.get("y"),
+            }
+        elif device == "car":
+            if "id" not in dat:
+                return
+            tmp = {
+                "id": dat["id"],
+                "x":  dat.get("x"),
+                "y":  dat.get("y"),
+            }
+        else:
+            return
 
-        elif dat["device"] == "car":
-            tmp = {"id": dat["id"], "x": dat["x"], "y": dat["y"]}
         if self.debugging:
             self.logger.info(tmp)
         self.semaphoresSender.send(tmp)

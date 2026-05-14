@@ -32,9 +32,16 @@ from src.utils.messages.allMessages import Location
 from src.utils.messages.messageHandlerSender import messageHandlerSender
 from twisted.internet import protocol
 
+_TC = "\033[1;97m[ Traffic Communication ] :\033[0m"
+_INFO = "\033[1;92mINFO\033[0m"
+_WARN = "\033[1;93mWARNING\033[0m"
+_HL   = "\033[94m"
+_RST  = "\033[0m"
+
+
 # The server itself. Creates a new Protocol for each new connection and has the info for all of them.
 class tcpClient(protocol.ClientFactory):
-    def __init__(self, connectionBrokenCllbck, locsysID, locsysFrequency, queue):
+    def __init__(self, connectionBrokenCllbck, locsysID, locsysFrequency, queue, key_path=None):
         self.connectiondata = None
         self.connection = None
         self.retry_delay = 1
@@ -44,9 +51,17 @@ class tcpClient(protocol.ClientFactory):
         self.queue = queue
         self.event = Event()
         self.sendLocation = messageHandlerSender(self.queue, Location)
+        self._location_rx = 0
+
+        print(
+            f"{_TC} {_INFO} - LoCSys init  "
+            f"deviceID={_HL}{locsysID}{_RST}  "
+            f"freq={_HL}{locsysFrequency}{_RST}Hz  "
+            f"key={_HL}{key_path or '(not passed)'}{_RST}"
+        )
 
     def clientConnectionLost(self, connector, reason):
-        print(f"\033[1;97m[ Traffic Communication ] :\033[0m \033[1;93mWARNING\033[0m - Connection lost with server \033[94m{self.connectiondata}\033[0m")
+        print(f"{_TC} {_WARN} - Connection lost with server {_HL}{self.connectiondata}{_RST}")
         try:
             self.connectiondata = None
             self.connection = None
@@ -55,7 +70,7 @@ class tcpClient(protocol.ClientFactory):
             pass
 
     def clientConnectionFailed(self, connector, reason):
-        print(f"\033[1;97m[ Traffic Communication ] :\033[0m \033[1;93mWARNING\033[0m - Connection failed, retrying in \033[94m{self.retry_delay}s\033[0m")
+        print(f"{_TC} {_WARN} - Connection failed, retrying in {_HL}{self.retry_delay}s{_RST}")
         self.event.wait(self.retry_delay)
         connector.connect()
 
@@ -75,7 +90,11 @@ class SingleConnection(protocol.Protocol):
         self.factory.connectiondata = peer.host + ":" + str(peer.port) # type: ignore
         self.factory.connection = self # type: ignore
         self.subscribeToLocaitonData(self.factory.locsysID, self.factory.locsysFrequency) # type: ignore
-        print(f"\033[1;97m[ Traffic Communication ] :\033[0m \033[1;92mINFO\033[0m - Connected to server \033[94m{self.factory.connectiondata}\033[0m") # type: ignore
+        print(
+            f"{_TC} {_INFO} - Connected to server {_HL}{self.factory.connectiondata}{_RST}  "  # type: ignore
+            f"subscribing deviceID={_HL}{self.factory.locsysID}{_RST}  "  # type: ignore
+            f"freq={_HL}{self.factory.locsysFrequency}{_RST}Hz"  # type: ignore
+        )
 
     def dataReceived(self, data):
         dat = data.decode()
@@ -87,16 +106,23 @@ class SingleConnection(protocol.Protocol):
 
         if da["type"] == "location":
             da["id"] = self.factory.locsysID # type: ignore
-            # fixed infinite loop on hooks (hopefully)
+            self.factory._location_rx += 1  # type: ignore
+            x = da.get("x"); y = da.get("y")
+            print(
+                f"{_TC} {_INFO} - Location rx #{self.factory._location_rx}  "  # type: ignore
+                f"id={_HL}{da.get('id')}{_RST}  x={x}  y={y}  "
+                f"→ publishing to queue"
+            )
             self.factory.sendLocation.send(da) # type: ignore
         else:
-            print(f"\033[1;97m[ Traffic Communication ] :\033[0m \033[1;92mINFO\033[0m - Message from server \033[94m{self.factory.connectiondata}\033[0m") # type: ignore
+            print(f"{_TC} {_INFO} - Message from server {_HL}{self.factory.connectiondata}{_RST}  type={da.get('type')}") # type: ignore
+
     def send_data(self, message):
         msg = json.dumps(message)
         self.transport.write(msg.encode()) # type: ignore
-    
+
     def subscribeToLocaitonData(self, id, frequency):
-        # Sends the id you wish to subscribe to and the frequency you want to receive data. Frequency must be between 0.1 and 5. 
+        # Sends the id you wish to subscribe to and the frequency you want to receive data. Frequency must be between 0.1 and 5.
         msg = {
             "reqORinfo": "info",
             "type": "locIDsub",

@@ -50,7 +50,7 @@ class threadTrafficCommunication(ThreadWithStop):
         self.listenPort = 9000
         self.queue = queueslist
 
-        self.tcp_factory = tcpClient(self.serverLost, deviceID, frequency, self.queue) # Handles the connection with the server
+        self.tcp_factory = tcpClient(self.serverLost, deviceID, frequency, self.queue, key_path=decrypt_key) # Handles the connection with the server
 
         self.udp_factory = udpListener(decrypt_key, self.serverFound) # Listens for server broadcast and validates it
 

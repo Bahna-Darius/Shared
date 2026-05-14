@@ -31,14 +31,20 @@ if __name__ == "__main__":
     sys.path.insert(0, "../../..")
 
 # Import necessary modules
+import os
 from multiprocessing import Pipe
 from src.data.TrafficCommunication.useful.sharedMem import sharedMem
 from src.templates.workerprocess import WorkerProcess
 from src.data.TrafficCommunication.threads.threadTrafficCommunication import threadTrafficCommunication
+from src.data.TrafficCommunication.threads.threadTrafficCommBridge import threadTrafficCommBridge
+
+# Default: production key. Use BFMC_LOCSYS_KEY env var to override (e.g. for local testing).
+_DEFAULT_KEY = "src/data/TrafficCommunication/useful/publickey_server.pem"
+_TEST_KEY    = "src/data/TrafficCommunication/useful/publickey_server_test.pem"
 
 class processTrafficCommunication(WorkerProcess):
     """This process receives the location of the car and sends it to the processGateway.
-    
+
     Args:
         queueList (dictionary of multiprocessing.queues.Queue): Dictionary of queues where the ID is the type of messages.
         logging (logging object): Used for debugging.
@@ -51,10 +57,18 @@ class processTrafficCommunication(WorkerProcess):
         self.queuesList = queueList
         self.logging = logging
         self.shared_memory = sharedMem()
-        self.filename = "src/data/TrafficCommunication/useful/publickey_server_test.pem"
-        self.deviceID = deviceID
-        self.frequency = frequency
+        self.filename = os.getenv("BFMC_LOCSYS_KEY", _DEFAULT_KEY)
+        self.deviceID = int(os.getenv("BFMC_LOCSYS_DEVICE_ID", str(deviceID)))
+        self.frequency = float(os.getenv("BFMC_LOCSYS_FREQUENCY", str(frequency)))
         self.debugging = debugging
+        self._bridge_enabled = os.getenv("BFMC_TRAFFIC_COMM_BRIDGE_ENABLED", "1") != "0"
+        print(
+            f"\033[1;97m[ Traffic Communication ] :\033[0m \033[1;92mINFO\033[0m - "
+            f"process init  key=\033[94m{self.filename}\033[0m  "
+            f"deviceID=\033[94m{self.deviceID}\033[0m  "
+            f"freq=\033[94m{self.frequency}\033[0m  "
+            f"bridge=\033[94m{self._bridge_enabled}\033[0m"
+        )
         super(processTrafficCommunication, self).__init__(self.queuesList, ready_event)
 
     # ===================================== INIT TH ======================================
@@ -65,6 +79,15 @@ class processTrafficCommunication(WorkerProcess):
             self.shared_memory, self.queuesList, self.deviceID, self.frequency, self.filename
         )
         self.threads.append(TrafficComTh)
+
+        if self._bridge_enabled:
+            bridge_th = threadTrafficCommBridge(
+                self.shared_memory,
+                self.queuesList,
+                logger=self.logging,
+                debugging=self.debugging,
+            )
+            self.threads.append(bridge_th)
 
 
 # =================================== EXAMPLE =========================================
